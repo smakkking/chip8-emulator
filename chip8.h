@@ -4,15 +4,16 @@
 #include <string>
 #include <iostream>
 
-const unsigned int MEM_SIZE = 4096;
+const unsigned int MEM_SIZE = 1024;//4096;
 const unsigned int CHIPSET_FONTS_BUILTIN_BEGIN = 0x050;
 const unsigned int CHIPSET_FONTS_BUILTIN_END = 0x0A0;
 const unsigned int RAM_BEGIN = 0x200;
 
-const unsigned int PROGRAMM_SIZE = 1024;
+const unsigned int PROGRAMM_SIZE = 50;
 
 const unsigned int REGISTERS_NUM = 16;
-const unsigned int DISPLAY_SIZE = 64 * 32;
+const unsigned int DISPLAY_HEIGHT = 8;
+const unsigned int DISPLAY_WIDTH = 8;
 
 const unsigned int STACK_SIZE = 16;
 const unsigned int KEYS_SIZE = 16;
@@ -28,6 +29,12 @@ public:
         name = n;
         for (int i = 0; i < PROGRAMM_SIZE; i++)
             buffer[i] = 0;
+    }
+    Programm(std::string n, unsigned char prog_buff[]) 
+    {
+        name = n;
+        for (int i = 0; i < PROGRAMM_SIZE; i++)
+            buffer[i] = prog_buff[i];
     }
 };
 
@@ -49,7 +56,7 @@ class Chip8
     // 0x200-0xFFF - RAM
     // программа в памяти - это просто набор 2-байтных инструкций, идущих друг за другом
 
-    unsigned char gfx[DISPLAY_SIZE]; // graphics
+    unsigned char gfx[DISPLAY_HEIGHT * DISPLAY_WIDTH]; // graphics
     unsigned char delay_timer; // interrupt analog
     unsigned char sound_timer; 
 
@@ -57,13 +64,18 @@ class Chip8
     unsigned short sp;
 
     unsigned char key[KEYS_SIZE];
+
+    
     
 public:
+    
+    friend void draw_graphics(Chip8 *chip);
+    
     bool drawFlag;
 
     void initialize(); // beginning init of cpu
     void loadGame(Programm p); // load game to the RAM
-    void emulateCycle(); // model cycle of cpu
+    bool emulateCycle(); // model cycle of cpu
     void setKeys(); // user input
     void decode_and_execute();
 };

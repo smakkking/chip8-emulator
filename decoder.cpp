@@ -3,15 +3,26 @@
 
 void Chip8::decode_and_execute() 
 {
+    unsigned char X, Y;
+    unsigned char inputKey;
     // decoding first letter of command
     switch (opcode & 0xF000) 
     {
         case 0x0000:
+
+            if (!opcode) 
+            {
+                pc += 2;
+                return;
+            }
+                
             switch(opcode & 0x000F)
             {
-
                 case 0x0000:
                     // 0x00E0: Clears the screen
+                    for (int i = 0; i < DISPLAY_HEIGHT * DISPLAY_WIDTH; i++) 
+                        gfx[i] = 0x0;
+                    pc += 2;
                 break;
 
                 case 0x000E:
@@ -73,8 +84,8 @@ void Chip8::decode_and_execute()
 
         case 0x8000:
             // 8XYN - математические операции
-            unsigned char X = (opcode & 0x0F00) >> 8,
-                        Y = (opcode & 0x00F0) >> 4;
+            X = (opcode & 0x0F00) >> 8;
+            Y = (opcode & 0x00F0) >> 4;
             switch (opcode & 0x000F)
             {
                 case 0x0000:
@@ -119,8 +130,17 @@ void Chip8::decode_and_execute()
                     V[X] <<= 1;
                 break;
             }
-            pc += 2;
-                 
+            pc += 2;    
+        break;
+
+        case 0x9000:
+            // 8XYN - математические операции
+            X = (opcode & 0x0F00) >> 8;
+            Y = (opcode & 0x00F0) >> 4;
+            if (V[X] != V[Y])
+                pc += 4;
+            else
+                pc += 2;
         break;
 
         case 0xA000:
@@ -136,24 +156,104 @@ void Chip8::decode_and_execute()
 
         case 0xC000:
             // CXNN: VX = rand() & NN
-            unsigned char X = (opcode & 0x0F00) >> 8;
+            X = (opcode & 0x0F00) >> 8;
             V[X] = (rand() % 256) & (opcode & 0x00FF);
             pc += 2;
         break;
 
+        case 0xD000:
+        {
+            X = (opcode & 0x0F00) >> 8;
+            Y = (opcode & 0x00F0) >> 4;
+            unsigned short pixel, N = opcode & 0x000F;
+
+            V[0xF] = 0;
+            for (int yline = 0; yline < N; yline++)
+            {
+                pixel = memory[I + yline];
+                for (int xline = 0; xline < 8; xline++)
+                {
+                    if (pixel & (0b10000000 >> xline) != 0 && 
+                            gfx[V[X] + xline + (V[Y] + yline) * DISPLAY_HEIGHT] == 1)
+                        V[0xF] = 1;
+                    gfx[V[X] + xline + (V[Y] + yline) * DISPLAY_HEIGHT] ^= pixel & (0b10000000 >> xline);
+                }
+            }
+
+            drawFlag = true;
+            pc += 2;
+        }
+        break;
+
+        case 0xE000:
+            X = (opcode & 0x0F00) >> 8;
+            switch (opcode & 0x00FF)
+            {
+                case 0x009E:
+                    if (key[V[X]])
+                        pc += 4;
+                    else
+                        pc += 2;
+                break;
+
+                case 0x00A1:
+                    if (key[V[X]] == 0)
+                        pc += 4;
+                    else
+                        pc += 2;
+                break;
+            }
+        break;
+
+
         case 0xF000:
-            unsigned char X = (opcode & 0x0F00) >> 8;
+            X = (opcode & 0x0F00) >> 8;
             switch (opcode & 0x00FF) 
             {
                 case 0x0033:
                     memory[I] = V[X] / 100;
                     memory[I + 1] = (V[X] / 10) % 10;
-                    memory[I + 2] = V[X] % 10;
-                    pc += 2;
+                    memory[I + 2] = V[X] % 10;                    
                 break;
-            }
-        break;
 
+                case 0x0007:
+                    V[X] = delay_timer;
+                break;
+
+                case 0x000A:
+                    std::cin >> inputKey;
+                    key[inputKey] = 1;
+                break;
+
+                case 0x0015:
+                    delay_timer = V[X];
+                break;
+
+                case 0x0018:
+                    sound_timer = V[X];
+                break;
+
+                case 0x001E:
+                    I += V[X];
+                break;
+
+                case 0x0029:
+                    I = CHIPSET_FONTS_BUILTIN_BEGIN + 5 * V[X];
+                break;
+
+                case 0x0055:
+                    for (unsigned char i = 0; i <= X; i++)
+                        memory[I + i] = V[i];
+                break;
+
+                case 0x0065:
+                    for (unsigned char i = 0; i <= X; i++)
+                        V[i] = memory[I + i];
+                break;
+
+            }
+            pc += 2; // переход на след команду, автоматически для всех команд этого класса
+        break;
 
         default:
             std::cout << "unknown operation! " << opcode << std::endl;
